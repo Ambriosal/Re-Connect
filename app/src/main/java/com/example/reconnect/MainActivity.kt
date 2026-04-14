@@ -3,45 +3,25 @@ package com.example.reconnect
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.reconnect.ui.theme.ReConnectTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.reconnect.ui.screens.ContactsScreen
+import com.example.reconnect.ui.theme.REConnectTheme
+import com.example.reconnect.ui.viewmodel.ContactsViewModel
+import com.example.reconnect.ui.viewmodel.ContactsViewModelFactory
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
+        val repository = (application as REConnectApplication).repository
+
         setContent {
-            ReConnectTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+            REConnectTheme {
+                val viewModel: ContactsViewModel = viewModel(
+                    factory = ContactsViewModelFactory(repository)
+                )
+                ContactsScreen(viewModel = viewModel)
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    ReConnectTheme {
-        Greeting("Android")
     }
 }
