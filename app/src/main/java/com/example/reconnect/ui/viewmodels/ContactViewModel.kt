@@ -6,8 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.reconnect.data.local.ContactEntity
 import com.example.reconnect.data.local.REConnectRepository
 import com.example.reconnect.data.model.toUiModel
+import android.content.Context
+import android.net.Uri
+import com.example.reconnect.util.readContactFromUri
 
 import com.example.reconnect.data.model.ContactUiModel
+import com.example.reconnect.util.ImportedContact
+import com.example.reconnect.util.readAllPhoneContacts
+import kotlinx.coroutines.Dispatchers
 
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -17,15 +23,24 @@ import kotlinx.coroutines.launch
 // the Contacts screen needs to display.
 data class ContactsUiState(
     val contacts: List<ContactUiModel> = emptyList(),
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val contactCount: Int = 0,
+    val phoneContacts: List<ImportedContact> = emptyList(),   // ← all phone contacts
+    val isLoadingPhoneContacts: Boolean = false
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
 class ContactsViewModel(private val repository: REConnectRepository) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ContactsUiState())
-    val uiState: StateFlow<ContactsUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<com.example.reconnect.ui.viewmodel.ContactsUiState> = _uiState.asStateFlow()
 
+    data class ContactsUiState(
+        val contacts: List<ContactUiModel> = emptyList(),
+        val isLoading: Boolean = true,
+        val contactCount: Int = 0,           // ← add this
+        val isLoadingPhoneContacts: Boolean
+    )
 
     init {
         viewModelScope.launch {
@@ -36,7 +51,10 @@ class ContactsViewModel(private val repository: REConnectRepository) : ViewModel
                         entity.toUiModel(lastInteraction)
                     }
                     _uiState.update {
-                        it.copy(contacts = uiModels, isLoading = false)
+                        it.copy(
+                            contacts = uiModels,
+                            isLoading = false,
+                            contactCount = uiModels.size)
                     }
                 }
         }
@@ -74,6 +92,35 @@ class ContactsViewModel(private val repository: REConnectRepository) : ViewModel
             )
         }
     }
+
+    fun importContactFromUri(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            val imported = readContactFromUri(context, uri) ?: return@launch
+            repository.importContact(imported)
+        }
+    }
+
+    fun loadPhoneContacts(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(isLoadingPhoneContacts = true) }
+            val phoneContacts = readAllPhoneContacts(context)
+            _uiState.update {
+                it.copy(
+                    phoneContacts = phoneContacts,
+                    isLoadingPhoneContacts = false
+                )
+            }
+        }
+    }
+
+    fun importMultipleContacts(selected: List<ImportedContact>) {
+        viewModelScope.launch {
+            selected.forEach { imported ->
+                repository.importContact(imported)
+            }
+        }
+    }
+
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ fun ContactEntity.toUiModel(lastInteraction: InteractionEntity?): ContactUiModel
         relationshipLabel = this.relationshipLabel,
         reminderFrequencyDays = this.reminderFrequencyDays,
         notes = this.notes,
-        lastContactedAt = lastInteraction?.occurredAt
+        lastContactedAt = lastInteraction?.occurredAt,
+        nativeContactId = this.nativeContactId
     )
 }

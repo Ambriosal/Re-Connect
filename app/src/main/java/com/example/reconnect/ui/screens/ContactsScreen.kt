@@ -1,5 +1,8 @@
 package com.example.reconnect.ui.screens
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,24 +13,47 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.google.accompanist.permissions.shouldShowRationale
 import com.example.reconnect.data.model.ContactUiModel
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
-
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ContactsScreen(viewModel: ContactsViewModel) {
 
     val uiState by viewModel.uiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var showImportOptions by remember { mutableStateOf(false) }
+
+    // -- Permission State
+    val contactsPermission = rememberPermissionState(Manifest.permission.READ_CONTACTS)
+
+    // ── Add this state variable near the top
+    var showContactPicker by remember { mutableStateOf(false) }
+
+    // only fires when intended
+    var pendingContactImport by remember { mutableStateOf(false) }
+    // ── Contact picker launcher
+    val contactPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickContact()
+    ) { uri ->
+        uri?.let { viewModel.importContactFromUri(context, it) }
+        pendingContactImport = false
+    }
+
 
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("RE:Connect") })
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(onClick = { showImportOptions = true }) {
                 Icon(Icons.Default.Add, contentDescription = "Add Contact")
             }
         }
@@ -51,6 +77,17 @@ fun ContactsScreen(viewModel: ContactsViewModel) {
                 // ── Contacts list
                 else -> {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
+
+                        // ── Contact count header
+                        item {
+                            Text(
+                                text = "Found ${uiState.contactCount} contact${if (uiState.contactCount == 1) "" else "s"}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+
                         items(uiState.contacts, key = { it.id }) { contact ->
                             ContactCard(
                                 contact = contact,
@@ -65,6 +102,43 @@ fun ContactsScreen(viewModel: ContactsViewModel) {
         }
     }
 
+    // ── Add options dialog: Import from phone OR add manually
+    if (showImportOptions) {
+        AlertDialog(
+            onDismissRequest = { showImportOptions = false },
+            title = { Text("Add Contact") },
+            text = { Text("How would you like to add a contact?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showImportOptions = false
+                    when {
+                        contactsPermission.status.isGranted -> {
+                            viewModel.loadPhoneContacts(context)   // ← load all contacts
+                            showContactPicker = true               // ← show picker
+                        }
+                        else -> {
+                            pendingContactImport = true
+                            contactsPermission.launchPermissionRequest()
+                        }
+                    }
+                }) { Text("Import from Phone") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showImportOptions = false
+                    showAddDialog = true
+                }) { Text("Add Manually") }
+            }
+        )
+    }
+
+    if (showContactPicker) {
+        ContactPickerScreen(
+            viewModel = viewModel,
+            onDismiss = { showContactPicker = false }
+        )
+    }
+
     // ── Add Contact Dialog
     if (showAddDialog) {
         AddContactDialog(
@@ -75,8 +149,22 @@ fun ContactsScreen(viewModel: ContactsViewModel) {
             }
         )
     }
-}
 
+// ── Track whether user just requested import so LaunchedEffect
+
+
+
+
+
+// ── Only opens picker when user actually requested it
+    LaunchedEffect(contactsPermission.status.isGranted, pendingContactImport) {
+        if (pendingContactImport && contactsPermission.status.isGranted) {
+            viewModel.loadPhoneContacts(context)
+            showContactPicker = true
+            pendingContactImport = false
+        }
+    }
+}
 
 
 

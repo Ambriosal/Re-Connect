@@ -1,5 +1,6 @@
 package com.example.reconnect.data.local
 
+import com.example.reconnect.util.ImportedContact
 import kotlinx.coroutines.flow.Flow
 
 class REConnectRepository(private val db: REConnectDatabase) {
@@ -55,5 +56,17 @@ class REConnectRepository(private val db: REConnectDatabase) {
 
     suspend fun deleteContactById(contactId: Long) {
         db.contactDao().deleteContactById(contactId)
+    }
+
+    suspend fun importContact(imported: ImportedContact): Long {
+        return db.contactDao().insertContact(
+            ContactEntity(
+                name = imported.name,
+                phoneNumber = imported.phoneNumber,
+                nativeContactId = imported.nativeId,
+                relationshipLabel = "",
+                reminderFrequencyDays = 14
+            )
+        )
     }
 }

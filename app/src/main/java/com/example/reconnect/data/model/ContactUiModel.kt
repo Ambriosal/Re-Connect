@@ -7,5 +7,6 @@ data class ContactUiModel(
     val relationshipLabel: String,
     val reminderFrequencyDays: Int,
     val notes: String,
-    val lastContactedAt: Long?      // pulled from Interaction, not Contact table
+    val lastContactedAt: Long?,
+    val nativeContactId: String?
 )
