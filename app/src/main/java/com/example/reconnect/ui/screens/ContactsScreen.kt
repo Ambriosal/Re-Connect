@@ -3,6 +3,7 @@ package com.example.reconnect.ui.screens
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,12 +20,11 @@ import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import com.google.accompanist.permissions.shouldShowRationale
 import com.example.reconnect.data.model.ContactUiModel
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
-fun ContactsScreen(viewModel: ContactsViewModel) {
+fun ContactsScreen(viewModel: ContactsViewModel, onNavigateToDetail: (Long) -> Unit) {
 
     val uiState by viewModel.uiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
@@ -92,7 +92,8 @@ fun ContactsScreen(viewModel: ContactsViewModel) {
                             ContactCard(
                                 contact = contact,
                                 onQuickLog = { viewModel.quickLogContact(contact.id) },
-                                onDelete = { viewModel.deleteContact(contact.id) }
+                                onDelete = { viewModel.deleteContact(contact.id) },
+                                onClick = { onNavigateToDetail(contact.id) }
                             )
                             HorizontalDivider()
                         }
@@ -175,11 +176,13 @@ fun ContactsScreen(viewModel: ContactsViewModel) {
 fun ContactCard(
     contact: ContactUiModel,
     onQuickLog: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() }   // ← whole row is now tappable
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
