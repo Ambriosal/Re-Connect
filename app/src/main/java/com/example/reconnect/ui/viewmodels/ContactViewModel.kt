@@ -35,13 +35,6 @@ class ContactsViewModel(private val repository: REConnectRepository) : ViewModel
     private val _uiState = MutableStateFlow(ContactsUiState())
     val uiState: StateFlow<com.example.reconnect.ui.viewmodel.ContactsUiState> = _uiState.asStateFlow()
 
-    data class ContactsUiState(
-        val contacts: List<ContactUiModel> = emptyList(),
-        val isLoading: Boolean = true,
-        val contactCount: Int = 0,           // ← add this
-        val isLoadingPhoneContacts: Boolean
-    )
-
     init {
         viewModelScope.launch {
             repository.getAllContacts()

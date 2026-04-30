@@ -12,8 +12,12 @@ import androidx.navigation.navArgument
 import com.example.reconnect.data.local.REConnectRepository
 import com.example.reconnect.ui.screens.ContactsScreen
 import com.example.reconnect.ui.screens.Screen
+import com.example.reconnect.ui.viewmodel.ContactDetailViewModel
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
 import com.example.reconnect.ui.viewmodel.ContactsViewModelFactory
+import com.example.reconnect.ui.screens.ContactDetailsScreen
+import com.example.reconnect.ui.viewmodel.ContactDetailViewModelFactory
+
 
 @Composable
 fun NavGraph(
@@ -40,15 +44,21 @@ fun NavGraph(
         // ── Route 2: Contact Detail  (we'll build this screen next)
         composable(
             route = Screen.ContactDetail,
-            arguments = listOf(
-                // Tell the nav system: contactId is a Long, not a String
-                navArgument("contactId") { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-            // Extract the contactId from the route — like req.params.id in Express
-            val contactId = backStackEntry.arguments?.getLong("contactId") ?: return@composable
+            arguments = listOf(navArgument("contactId") { type = NavType.LongType })
 
-            // ContactDetailScreen goes here — we'll add it in the next step
+        ) { backStackEntry ->
+            val contactId = backStackEntry.arguments?.getLong("contactId") ?: return@composable
+            android.util.Log.d("NAV", "Navigating to contactId = $contactId")
+
+            // Build the ViewModel with the factory — same pattern as ContactsScreen
+            val vm: ContactDetailViewModel = viewModel(
+                factory = ContactDetailViewModelFactory(repository, contactId)
+            )
+
+            ContactDetailsScreen(
+                viewModel = vm,
+                onNavigateBack = { navController.popBackStack() }  // ← pop = go back
+            )
         }
     }
 }
