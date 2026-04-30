@@ -30,6 +30,10 @@ fun ContactsScreen(viewModel: ContactsViewModel, onNavigateToDetail: (Long) -> U
     var showAddDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     var showImportOptions by remember { mutableStateOf(false) }
+    var pendingLogContactId by remember { mutableStateOf<Long?>(null) }
+
+    var showLogDialog by remember { mutableStateOf(false) }
+
 
     // -- Permission State
     val contactsPermission = rememberPermissionState(Manifest.permission.READ_CONTACTS)
@@ -91,7 +95,10 @@ fun ContactsScreen(viewModel: ContactsViewModel, onNavigateToDetail: (Long) -> U
                         items(uiState.contacts, key = { it.id }) { contact ->
                             ContactCard(
                                 contact = contact,
-                                onQuickLog = { viewModel.quickLogContact(contact.id) },
+                                onQuickLog = {
+                                    pendingLogContactId = contact.id   // ← remember which contact
+                                    showLogDialog = true               // ← open the dialog
+                                },
                                 onDelete = { viewModel.deleteContact(contact.id) },
                                 onClick = { onNavigateToDetail(contact.id) }
                             )
@@ -147,6 +154,26 @@ fun ContactsScreen(viewModel: ContactsViewModel, onNavigateToDetail: (Long) -> U
             onConfirm = { name: String, phone: String?, label: String, days: Int ->
                 viewModel.addContact(name, phone, label, days)
                 showAddDialog = false
+            }
+        )
+    }
+
+    if (showLogDialog) {
+        LogInteractionDialog(
+            onDismiss = {
+                showLogDialog = false
+                pendingLogContactId = null
+            },
+            onConfirm = { type, notes ->
+                pendingLogContactId?.let { contactId ->
+                    viewModel.quickLogContact(
+                        contactId = contactId,
+                        platform = type.key,       // ← was hardcoded "manual" before
+                        notes = notes
+                    )
+                }
+                showLogDialog = false
+                pendingLogContactId = null
             }
         )
     }

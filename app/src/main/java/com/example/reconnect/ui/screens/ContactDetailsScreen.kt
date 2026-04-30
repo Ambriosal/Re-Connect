@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.reconnect.data.local.ContactEntity
 import com.example.reconnect.data.local.InteractionEntity
+import com.example.reconnect.data.model.InteractionType
 import com.example.reconnect.ui.viewmodel.ContactDetailViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -114,8 +115,11 @@ fun ContactDetailsScreen(
     if (showLogDialog) {
         LogInteractionDialog(
             onDismiss = { showLogDialog = false },
-            onConfirm = { notes ->
-                viewModel.logInteraction(notes)
+            onConfirm = { type, notes ->           // ← destructure both parameters
+                viewModel.logInteraction(
+                    type = type.key,               // pass the stable key, not the label
+                    notes = notes
+                )
                 showLogDialog = false
             }
         )
@@ -183,29 +187,30 @@ fun ContactHeader(
 // ── Single history row ────────────────────────────────────────────────────────
 @Composable
 fun InteractionRow(interaction: InteractionEntity) {
-    // Format the stored timestamp (milliseconds) into a readable date
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     val dateString = dateFormatter.format(Date(interaction.occurredAt))
 
+    // Map the stored key back to a display label
+    // Falls back to the raw key for old "manual" entries so nothing breaks
+    val typeDisplay = InteractionType.fromKey(interaction.type)
+        ?.let { "${it.emoji} ${it.label}" }
+        ?: interaction.type                          // ← graceful fallback
+
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
     ) {
         Text(
-            text = "$dateString · via ${interaction.type}",
+            text = "$dateString · $typeDisplay",     // ← was "via ${interaction.type}"
             style = MaterialTheme.typography.bodyMedium
         )
-        val notes = interaction.notes ?: ""   // if notes is null, treat it as empty string
-
+        val notes = interaction.notes.orEmpty()
         if (notes.isNotBlank()) {
             Spacer(Modifier.height(2.dp))
             Text(
-                text = notes,   // now guaranteed non-null
+                text = notes,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 }
-

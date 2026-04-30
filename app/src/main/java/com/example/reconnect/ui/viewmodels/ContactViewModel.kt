@@ -77,11 +77,13 @@ class ContactsViewModel(private val repository: REConnectRepository) : ViewModel
         }
     }
 
-    fun quickLogContact(contactId: Long, platform: String = "manual") {
+    fun quickLogContact(contactId: Long, platform: String = "manual", notes: String) {
+        android.util.Log.d("QuickLog", "notes received: '$notes'")
         viewModelScope.launch {
             repository.logInteraction(
                 contactId = contactId,
-                platform = platform
+                platform = platform,
+                notes = notes
             )
         }
     }

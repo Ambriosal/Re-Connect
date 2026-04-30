@@ -62,15 +62,13 @@ class ContactDetailViewModel(
     }
 
     // Called from the screen when user confirms a log entry
-    fun logInteraction(notes: String) {
+    fun logInteraction(type: String, notes: String) {
         viewModelScope.launch {
             repository.logInteraction(
                 contactId = contactId,
-                platform = "manual",
+                platform = type,
                 notes = notes
             )
-            // No manual state update needed here — the Flow above
-            // will automatically emit the new list after the insert
         }
     }
 
