@@ -16,7 +16,10 @@ import com.example.reconnect.ui.viewmodel.ContactDetailViewModel
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
 import com.example.reconnect.ui.viewmodel.ContactsViewModelFactory
 import com.example.reconnect.ui.screens.ContactDetailsScreen
+import com.example.reconnect.ui.screens.SettingsScreen
 import com.example.reconnect.ui.viewmodel.ContactDetailViewModelFactory
+import com.example.reconnect.ui.viewmodel.SettingsViewModel
+import com.example.reconnect.ui.viewmodel.SettingsViewModelFactory
 
 
 @Composable
@@ -37,11 +40,14 @@ fun NavGraph(
                 onNavigateToDetail = { contactId ->
                     // Push "contact_detail/42" onto the back stack
                     navController.navigate(Screen.contactDetailRoute(contactId))
+                },
+                onNavigateToSettings = {             // ← add this
+                    navController.navigate(Screen.Settings)
                 }
             )
         }
 
-        // ── Route 2: Contact Detail  (we'll build this screen next)
+        // ── Route 2: Contact Detail
         composable(
             route = Screen.ContactDetail,
             arguments = listOf(navArgument("contactId") { type = NavType.LongType })
@@ -58,6 +64,16 @@ fun NavGraph(
             ContactDetailsScreen(
                 viewModel = vm,
                 onNavigateBack = { navController.popBackStack() }  // ← pop = go back
+            )
+        }
+        // ── Route 3: Settings
+        composable(Screen.Settings) {
+            val vm: SettingsViewModel = viewModel(
+                factory = SettingsViewModelFactory(repository)
+            )
+            SettingsScreen(
+                viewModel = vm,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

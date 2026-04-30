@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,10 +22,15 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.example.reconnect.data.model.ContactUiModel
+import com.example.reconnect.data.model.RelationshipType
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
-fun ContactsScreen(viewModel: ContactsViewModel, onNavigateToDetail: (Long) -> Unit) {
+fun ContactsScreen(
+    viewModel: ContactsViewModel,
+    onNavigateToDetail: (Long) -> Unit,
+    onNavigateToSettings: () -> Unit
+) {
 
     val uiState by viewModel.uiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
@@ -54,7 +60,18 @@ fun ContactsScreen(viewModel: ContactsViewModel, onNavigateToDetail: (Long) -> U
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("RE:Connect") })
+            // Update the TopAppBar to include a settings icon action
+            TopAppBar(
+                title = { Text("RE:Connect") },
+                actions = {
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings"
+                        )
+                    }
+                }
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = { showImportOptions = true }) {
@@ -225,9 +242,13 @@ fun ContactCard(
         // Name + label
         Column(modifier = Modifier.weight(1f)) {
             Text(text = contact.name, fontWeight = FontWeight.SemiBold)
+            // In ContactCard, replace the relationshipLabel Text:
+
             if (contact.relationshipLabel.isNotBlank()) {
                 Text(
-                    text = contact.relationshipLabel,
+                    // Before: contact.relationshipLabel
+                    // After: mapped through RelationshipType for emoji + clean label
+                    text = RelationshipType.displayFrom(contact.relationshipLabel),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -279,7 +300,7 @@ fun ContactCard(
     ) {
         var name by remember { mutableStateOf("") }
         var phone by remember { mutableStateOf("") }
-        var label by remember { mutableStateOf("") }
+        var selectedRelationship by remember { mutableStateOf<RelationshipType?>(null) }  // ← replaces label string
         var reminderDays by remember { mutableStateOf("14") }
 
         AlertDialog(
@@ -301,13 +322,18 @@ fun ContactCard(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = label,
-                        onValueChange = { label = it },
-                        label = { Text("Label (e.g. Friend, Family)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+
+                    // ── Relationship picker replaces the OutlinedTextField
+                    Text(
+                        "Relationship Type",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    RelationshipTypePicker(
+                        selectedKey = selectedRelationship?.key ?: "",
+                        onTypeSelected = { selectedRelationship = it }
+                    )
+
                     OutlinedTextField(
                         value = reminderDays,
                         onValueChange = { reminderDays = it.filter { c -> c.isDigit() } },
@@ -324,11 +350,13 @@ fun ContactCard(
                             onConfirm(
                                 name.trim(),
                                 phone.trim().ifBlank { null },
-                                label.trim(),
+                                selectedRelationship?.key ?: "",  // ← store the key
                                 reminderDays.toIntOrNull() ?: 14
                             )
                         }
-                    }
+                    },
+                    // Optionally require a relationship type too
+                    enabled = name.isNotBlank()
                 ) { Text("Add") }
             },
             dismissButton = {

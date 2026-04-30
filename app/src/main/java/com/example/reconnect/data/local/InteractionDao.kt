@@ -33,9 +33,15 @@ interface InteractionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInteraction(interaction: InteractionEntity): Long
 
+    //Delete 1 interaction
     @Delete
     suspend fun deleteInteraction(interaction: InteractionEntity)
 
+    //Delete interaction from specific contact
     @Query("SELECT * FROM interactions WHERE id = :id")
     suspend fun getInteractionById(id: Long): InteractionEntity?
+
+    //Delete all
+    @Query("DELETE FROM interactions")
+    suspend fun deleteAllInteractions()
 }

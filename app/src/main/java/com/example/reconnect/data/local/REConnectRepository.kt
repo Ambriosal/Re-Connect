@@ -69,4 +69,11 @@ class REConnectRepository(private val db: REConnectDatabase) {
             )
         )
     }
+
+    //Delete all!
+    // ── Nuclear option — wipes everything, used for dev testing via Settings
+    suspend fun clearAllData() {
+        db.interactionDao().deleteAllInteractions()  // interactions first
+        db.contactDao().deleteAllContacts()          // then contacts
+    }
 }

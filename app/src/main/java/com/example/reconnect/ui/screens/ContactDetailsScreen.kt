@@ -131,17 +131,20 @@ fun ContactDetailsScreen(
 @Composable
 fun ContactHeader(
     contact: ContactEntity,
-    lastContactedAt: Long?,                  // ← new parameter
+    lastContactedAt: Long?,
     onContactUpdated: (ContactEntity) -> Unit
 ) {
     var nameField by remember(contact.id) { mutableStateOf(contact.name) }
-    var labelField by remember(contact.id) { mutableStateOf(contact.relationshipLabel) }
+
+    // Pre-populate from whatever is already stored on the contact
+    // remember(contact.id) resets if you navigate to a different contact
+    var selectedRelationshipKey by remember(contact.id) {
+        mutableStateOf(contact.relationshipLabel)
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Spacer(Modifier.height(8.dp))
 
-        // ── Last contacted display ─────────────────────────────────────────
-        // Show before the editable fields — it's read info, not edit info
         val lastContactedText = lastContactedAt?.let { timestamp ->
             val daysAgo = ((System.currentTimeMillis() - timestamp) / 86_400_000).toInt()
             when (daysAgo) {
@@ -159,22 +162,32 @@ fun ContactHeader(
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-        // ── Editable fields (unchanged)
         OutlinedTextField(
             value = nameField,
             onValueChange = { nameField = it },
             label = { Text("Name") },
             modifier = Modifier.fillMaxWidth()
         )
-        OutlinedTextField(
-            value = labelField,
-            onValueChange = { labelField = it },
-            label = { Text("Relationship") },
-            modifier = Modifier.fillMaxWidth()
+
+        // ── Relationship picker — pre-selected from contact's stored key
+        Text(
+            "Relationship Type",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        RelationshipTypePicker(
+            selectedKey = selectedRelationshipKey,
+            onTypeSelected = { selectedRelationshipKey = it.key }  // store key locally
+        )
+
         Button(
             onClick = {
-                onContactUpdated(contact.copy(name = nameField, relationshipLabel = labelField))
+                onContactUpdated(
+                    contact.copy(
+                        name = nameField,
+                        relationshipLabel = selectedRelationshipKey  // ← save the key
+                    )
+                )
             },
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -183,7 +196,6 @@ fun ContactHeader(
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
     }
 }
-
 // ── Single history row ────────────────────────────────────────────────────────
 @Composable
 fun InteractionRow(interaction: InteractionEntity) {

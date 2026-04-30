@@ -7,15 +7,22 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.reconnect.data.model.ContactUiModel
 import com.example.reconnect.util.ImportedContact
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
+
+// Defines the available sort modes — sealed class so the when() below is exhaustive
+sealed class ContactSortOrder(val label: String) {
+    object AtoZ        : ContactSortOrder("A → Z")
+    object ZtoA        : ContactSortOrder("Z → A")
+    object PhoneFirst  : ContactSortOrder("Has Phone")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,16 +32,46 @@ fun ContactPickerScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // ── Track which contacts are selected by their nativeId
     val selected = remember { mutableStateListOf<String>() }
 
-    // ── Filter out contacts already in RE:Connect
+    // ── Search and sort state
+    var searchQuery by remember { mutableStateOf("") }
+    var sortOrder by remember { mutableStateOf<ContactSortOrder>(ContactSortOrder.AtoZ) }
+    var showSortMenu by remember { mutableStateOf(false) }
+
+    // ── Filter out already-imported contacts
     val existingNativeIds = uiState.contacts
         .mapNotNull { it.nativeContactId }
         .toSet()
 
-    val availableContacts = uiState.phoneContacts
-        .filter { it.nativeId !in existingNativeIds }
+    // ── Apply search then sort — this is a pure transformation of an in-memory list
+    // Re-runs automatically whenever searchQuery, sortOrder, or phoneContacts changes
+    val displayedContacts = remember(searchQuery, sortOrder, uiState.phoneContacts) {
+
+        // Step 1: exclude already imported
+        val available = uiState.phoneContacts
+            .filter { it.nativeId !in existingNativeIds }
+
+        // Step 2: filter by search query — checks name and phone number
+        // trim() removes accidental leading/trailing spaces
+        // lowercase() makes the match case-insensitive
+        val filtered = if (searchQuery.isBlank()) {
+            available
+        } else {
+            val query = searchQuery.trim().lowercase()
+            available.filter { contact ->
+                contact.name.lowercase().contains(query) ||
+                        contact.phoneNumber?.contains(query) == true
+            }
+        }
+
+        // Step 3: apply sort
+        when (sortOrder) {
+            ContactSortOrder.AtoZ       -> filtered.sortedBy { it.name.lowercase() }
+            ContactSortOrder.ZtoA       -> filtered.sortedByDescending { it.name.lowercase() }
+            ContactSortOrder.PhoneFirst -> filtered.sortedByDescending { it.phoneNumber != null }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -46,14 +83,42 @@ fun ContactPickerScreen(
                     )
                 },
                 navigationIcon = {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel")
-                    }
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
                 },
                 actions = {
+                    // ── Sort button + dropdown
+                    Box {
+                        TextButton(onClick = { showSortMenu = true }) {
+                            Text(sortOrder.label)
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            listOf(
+                                ContactSortOrder.AtoZ,
+                                ContactSortOrder.ZtoA,
+                                ContactSortOrder.PhoneFirst
+                            ).forEach { order ->
+                                DropdownMenuItem(
+                                    text = { Text(order.label) },
+                                    onClick = {
+                                        sortOrder = order
+                                        showSortMenu = false
+                                    },
+                                    // Checkmark on the active sort so user knows current state
+                                    trailingIcon = {
+                                        if (sortOrder == order) {
+                                            Icon(Icons.Default.Check, contentDescription = null)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     TextButton(
                         onClick = {
-                            // Import only selected contacts
                             val toImport = uiState.phoneContacts
                                 .filter { it.nativeId in selected }
                             viewModel.importMultipleContacts(toImport)
@@ -71,78 +136,96 @@ fun ContactPickerScreen(
         when {
             uiState.isLoadingPhoneContacts -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
+                    modifier = Modifier.fillMaxSize().padding(paddingValues),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(Modifier.height(12.dp))
                         Text("Reading contacts...")
                     }
                 }
             }
 
-            availableContacts.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "All your phone contacts are already in RE:Connect",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
             else -> {
                 LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
+                    modifier = Modifier.fillMaxSize().padding(paddingValues)
                 ) {
-                    // ── Select All / Deselect All
+
+                    // ── Search bar — pinned at top of list
                     item {
-                        Row(
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Search contacts...") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Search, contentDescription = null)
+                            },
+                            singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    if (selected.size == availableContacts.size) {
-                                        selected.clear()
-                                    } else {
-                                        selected.clear()
-                                        selected.addAll(availableContacts.map { it.nativeId })
-                                    }
-                                }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = selected.size == availableContacts.size,
-                                onCheckedChange = { checked ->
-                                    if (checked) {
-                                        selected.clear()
-                                        selected.addAll(availableContacts.map { it.nativeId })
-                                    } else {
-                                        selected.clear()
-                                    }
-                                }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Select All (${availableContacts.size})",
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        HorizontalDivider()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
                     }
 
-                    // ── Individual contact rows
-                    items(availableContacts, key = { it.nativeId }) { contact ->
+                    // ── Result count — helps user know how many match their search
+                    item {
+                        Text(
+                            text = when {
+                                searchQuery.isBlank() -> "${displayedContacts.size} contacts available"
+                                displayedContacts.isEmpty() -> "No contacts match \"$searchQuery\""
+                                else -> "${displayedContacts.size} result${if (displayedContacts.size == 1) "" else "s"}"
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    // ── Select All / Deselect All — operates on displayed list only
+                    // If searching, "Select All" only selects the filtered results
+                    if (displayedContacts.isNotEmpty()) {
+                        item {
+                            val allDisplayedSelected = displayedContacts
+                                .all { it.nativeId in selected }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (allDisplayedSelected) {
+                                            // Deselect only the currently displayed contacts
+                                            displayedContacts.forEach {
+                                                selected.remove(it.nativeId)
+                                            }
+                                        } else {
+                                            displayedContacts
+                                                .map { it.nativeId }
+                                                .forEach { id ->
+                                                    if (id !in selected) selected.add(id)
+                                                }
+                                        }
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = allDisplayedSelected,
+                                    onCheckedChange = null   // handled by row click above
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = if (searchQuery.isBlank()) "Select All"
+                                    else "Select all results",
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+
+                    // ── Contact rows
+                    items(displayedContacts, key = { it.nativeId }) { contact ->
                         ContactPickerRow(
                             contact = contact,
                             isSelected = contact.nativeId in selected,
@@ -161,9 +244,6 @@ fun ContactPickerScreen(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 fun ContactPickerRow(
     contact: ImportedContact,
