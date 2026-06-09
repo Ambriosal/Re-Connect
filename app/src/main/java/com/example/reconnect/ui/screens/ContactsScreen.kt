@@ -9,10 +9,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -24,6 +27,15 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.example.reconnect.data.model.ContactUiModel
 import com.example.reconnect.data.model.RelationshipType
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
+
+
+
+sealed class ContactSortOrderRich(val label: String) {
+    object AtoZ             : ContactSortOrderRich("A → Z")
+    object ZtoA             : ContactSortOrderRich("Z → A")
+    object RecentFirst      : ContactSortOrderRich("Recent First")
+    object OverdueFirst     : ContactSortOrderRich("Overdue First")
+}
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ContactsScreen(
@@ -39,6 +51,28 @@ fun ContactsScreen(
     var pendingLogContactId by remember { mutableStateOf<Long?>(null) }
 
     var showLogDialog by remember { mutableStateOf(false) }
+
+    var searchQuery by remember { mutableStateOf("") }
+    var sortOrder by remember { mutableStateOf<ContactSortOrderRich>(ContactSortOrderRich.AtoZ) }
+    var showSortMenu by remember { mutableStateOf(false) }
+//    var displayedContacts by remember { mutableStateOf(uiState.contacts) }
+
+    val displayedContacts by remember(uiState.contacts, searchQuery, sortOrder) {
+        derivedStateOf {
+            uiState.contacts
+                .filter { contact ->
+                    searchQuery.isBlank() || contact.name.contains(searchQuery, ignoreCase = true)
+                }
+                .let { filtered ->
+                    when (sortOrder) {
+                        ContactSortOrderRich.AtoZ         -> filtered.sortedBy { it.name.lowercase() }
+                        ContactSortOrderRich.ZtoA         -> filtered.sortedByDescending { it.name.lowercase() }
+                        ContactSortOrderRich.RecentFirst  -> filtered.sortedByDescending { it.lastContactedAt ?: 0L }
+                        ContactSortOrderRich.OverdueFirst -> filtered.sortedBy { it.lastContactedAt ?: Long.MAX_VALUE }
+                    }
+                }
+        }
+    }
 
 
     // -- Permission State
@@ -64,11 +98,43 @@ fun ContactsScreen(
             TopAppBar(
                 title = { Text("RE:Connect") },
                 actions = {
+                    // ── Sort dropdown
+                    Box {
+                        IconButton(onClick = { showSortMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.SwapVert,  // up/down arrows icon
+                                contentDescription = "Sort"
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            listOf(
+                                ContactSortOrderRich.AtoZ,
+                                ContactSortOrderRich.ZtoA,
+                                ContactSortOrderRich.RecentFirst,
+                                ContactSortOrderRich.OverdueFirst
+                            ).forEach { order ->
+                                DropdownMenuItem(
+                                    text = { Text(order.label) },
+                                    onClick = {
+                                        sortOrder = order
+                                        showSortMenu = false
+                                    },
+                                    trailingIcon = {
+                                        if (sortOrder == order) {
+                                            Icon(Icons.Default.Check, contentDescription = null)
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // ── Settings icon (unchanged)
                     IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings"
-                        )
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
             )
@@ -99,22 +165,46 @@ fun ContactsScreen(
                 else -> {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
 
-                        // ── Contact count header
+                        // ── Search bar — pinned at top
                         item {
-                            Text(
-                                text = "Found ${uiState.contactCount} contact${if (uiState.contactCount == 1) "" else "s"}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Search contacts...") },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Search, contentDescription = null)
+                                },
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
                             )
                         }
 
-                        items(uiState.contacts, key = { it.id }) { contact ->
+                        // ── Result count — updates live as user types
+                        item {
+                            Text(
+                                text = when {
+                                    searchQuery.isBlank() ->
+                                        "${uiState.contactCount} contact${if (uiState.contactCount == 1) "" else "s"}"
+                                    displayedContacts.isEmpty() ->
+                                        "No contacts match \"$searchQuery\""
+                                    else ->
+                                        "${displayedContacts.size} result${if (displayedContacts.size == 1) "" else "s"}"
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        // ── Contact rows — now from displayedContacts, not uiState.contacts
+                        items(displayedContacts, key = { it.id }) { contact ->
                             ContactCard(
                                 contact = contact,
                                 onQuickLog = {
-                                    pendingLogContactId = contact.id   // ← remember which contact
-                                    showLogDialog = true               // ← open the dialog
+                                    pendingLogContactId = contact.id
+                                    showLogDialog = true
                                 },
                                 onDelete = { viewModel.deleteContact(contact.id) },
                                 onClick = { onNavigateToDetail(contact.id) }

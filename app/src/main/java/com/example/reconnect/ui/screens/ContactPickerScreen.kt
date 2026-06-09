@@ -3,12 +3,12 @@ package com.example.reconnect.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,10 +18,10 @@ import com.example.reconnect.util.ImportedContact
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
 
 // Defines the available sort modes — sealed class so the when() below is exhaustive
-sealed class ContactSortOrder(val label: String) {
-    object AtoZ        : ContactSortOrder("A → Z")
-    object ZtoA        : ContactSortOrder("Z → A")
-    object PhoneFirst  : ContactSortOrder("Has Phone")
+sealed class PickerSortOrder(val label: String) {
+    object AtoZ        : PickerSortOrder("A → Z")
+    object ZtoA        : PickerSortOrder("Z → A")
+    object PhoneFirst  : PickerSortOrder("Has Phone")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,25 +36,30 @@ fun ContactPickerScreen(
 
     // ── Search and sort state
     var searchQuery by remember { mutableStateOf("") }
-    var sortOrder by remember { mutableStateOf<ContactSortOrder>(ContactSortOrder.AtoZ) }
+    var sortOrder by remember { mutableStateOf<PickerSortOrder>(PickerSortOrder.AtoZ) }
     var showSortMenu by remember { mutableStateOf(false) }
-
-    // ── Filter out already-imported contacts
-    val existingNativeIds = uiState.contacts
-        .mapNotNull { it.nativeContactId }
-        .toSet()
+//
+//    // ── Filter out already-imported contacts
+//    val existingNativeIds = uiState.contacts
+//        .mapNotNull { it.nativeContactId }
+//        .toSet()
 
     // ── Apply search then sort — this is a pure transformation of an in-memory list
     // Re-runs automatically whenever searchQuery, sortOrder, or phoneContacts changes
-    val displayedContacts = remember(searchQuery, sortOrder, uiState.phoneContacts) {
+    val displayedContacts = remember(
+        searchQuery,
+        sortOrder,
+        uiState.phoneContacts,
+        uiState.contacts        // ← add this key
+    ) {
+        // Move inside the block — now always fresh when remember re-runs
+        val existingNativeIds = uiState.contacts
+            .mapNotNull { it.nativeContactId }
+            .toSet()
 
-        // Step 1: exclude already imported
         val available = uiState.phoneContacts
             .filter { it.nativeId !in existingNativeIds }
 
-        // Step 2: filter by search query — checks name and phone number
-        // trim() removes accidental leading/trailing spaces
-        // lowercase() makes the match case-insensitive
         val filtered = if (searchQuery.isBlank()) {
             available
         } else {
@@ -65,11 +70,10 @@ fun ContactPickerScreen(
             }
         }
 
-        // Step 3: apply sort
         when (sortOrder) {
-            ContactSortOrder.AtoZ       -> filtered.sortedBy { it.name.lowercase() }
-            ContactSortOrder.ZtoA       -> filtered.sortedByDescending { it.name.lowercase() }
-            ContactSortOrder.PhoneFirst -> filtered.sortedByDescending { it.phoneNumber != null }
+            PickerSortOrder.AtoZ       -> filtered.sortedBy { it.name.lowercase() }
+            PickerSortOrder.ZtoA       -> filtered.sortedByDescending { it.name.lowercase() }
+            PickerSortOrder.PhoneFirst -> filtered.sortedByDescending { it.phoneNumber != null }
         }
     }
 
@@ -96,9 +100,9 @@ fun ContactPickerScreen(
                             onDismissRequest = { showSortMenu = false }
                         ) {
                             listOf(
-                                ContactSortOrder.AtoZ,
-                                ContactSortOrder.ZtoA,
-                                ContactSortOrder.PhoneFirst
+                                PickerSortOrder.AtoZ,
+                                PickerSortOrder.ZtoA,
+                                PickerSortOrder.PhoneFirst
                             ).forEach { order ->
                                 DropdownMenuItem(
                                     text = { Text(order.label) },
