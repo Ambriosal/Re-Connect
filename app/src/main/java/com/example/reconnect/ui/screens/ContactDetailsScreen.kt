@@ -202,17 +202,20 @@ fun InteractionRow(interaction: InteractionEntity) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     val dateString = dateFormatter.format(Date(interaction.occurredAt))
 
-    // Map the stored key back to a display label
-    // Falls back to the raw key for old "manual" entries so nothing breaks
     val typeDisplay = InteractionType.fromKey(interaction.type)
         ?.let { "${it.emoji} ${it.label}" }
-        ?: interaction.type                          // ← graceful fallback
+        ?: interaction.type
+
+    // Show call count if this is an auto-detected entry with multiple calls
+    val countSuffix = if (interaction.source == "auto_detected" && interaction.callCount > 1) {
+        " · ${interaction.callCount} calls"
+    } else ""
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
     ) {
         Text(
-            text = "$dateString · $typeDisplay",     // ← was "via ${interaction.type}"
+            text = "$dateString · $typeDisplay$countSuffix",  // ← appends "· 3 calls" when relevant
             style = MaterialTheme.typography.bodyMedium
         )
         val notes = interaction.notes.orEmpty()

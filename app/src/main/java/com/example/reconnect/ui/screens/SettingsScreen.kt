@@ -6,8 +6,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.reconnect.ui.viewmodel.SettingsViewModel
+import com.example.reconnect.worker.CallLogSyncWorker
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -17,17 +22,16 @@ fun SettingsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
-    // Watches clearSuccess — when it flips to true, shows the snackbar once
-    // LaunchedEffect re-runs whenever clearSuccess changes
     LaunchedEffect(uiState.clearSuccess) {
         if (uiState.clearSuccess) {
             snackbarHostState.showSnackbar("All data cleared.")
-            viewModel.onClearSuccessAcknowledged()   // reset the flag
+            viewModel.onClearSuccessAcknowledged()
         }
     }
 
-    // Controls visibility of the confirmation dialog
     var showConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -41,7 +45,7 @@ fun SettingsScreen(
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }  // ← where snackbars appear
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -58,7 +62,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // ── Clear data row
+            // ── Clear data card (unchanged)
             Card(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
@@ -80,9 +84,9 @@ fun SettingsScreen(
                     Spacer(Modifier.width(16.dp))
                     Button(
                         onClick = { showConfirmDialog = true },
-                        enabled = !uiState.isClearing,   // disabled while operation runs
+                        enabled = !uiState.isClearing,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error  // red — destructive action
+                            containerColor = MaterialTheme.colorScheme.error
                         )
                     ) {
                         if (uiState.isClearing) {
@@ -98,7 +102,41 @@ fun SettingsScreen(
                 }
             }
 
-            // ── Placeholder for future settings
+            // ── Sync test card
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Sync Call Log Now",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Manually trigger call log sync for testing",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Button(
+                        onClick = {
+                            val testRequest =
+                                OneTimeWorkRequestBuilder<CallLogSyncWorker>().build()
+                            WorkManager.getInstance(context).enqueue(testRequest)
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Call log sync triggered ✓")
+                            }
+                        }
+                    ) {
+                        Text("Run Sync")
+                    }
+                }
+            }
+
             Spacer(Modifier.height(16.dp))
             Text(
                 text = "More settings coming soon",
@@ -108,7 +146,6 @@ fun SettingsScreen(
         }
     }
 
-    // ── Confirmation dialog — outside Scaffold, overlays on top
     if (showConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },

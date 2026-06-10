@@ -33,6 +33,8 @@ interface InteractionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInteraction(interaction: InteractionEntity): Long
 
+
+
     //Delete 1 interaction
     @Delete
     suspend fun deleteInteraction(interaction: InteractionEntity)
@@ -44,4 +46,35 @@ interface InteractionDao {
     //Delete all
     @Query("DELETE FROM interactions")
     suspend fun deleteAllInteractions()
+
+    // Check if an auto-detected call interaction already exists for a contact on a given day
+    // Used by CallLogSyncWorker to avoid duplicate inserts on repeated syncs
+    @Query("""
+    SELECT COUNT(*) FROM interactions
+    WHERE contactId = :contactId
+    AND source = 'auto_detected'
+    AND occurredAt BETWEEN :dayStart AND :dayEnd""")
+    suspend fun countAutoInteractionsOnDay(
+        contactId: Long,
+        dayStart: Long,
+        dayEnd: Long
+    ): Int
+
+
+    // Finds an existing auto-detected call entry for this contact on this day
+    // Returns null if none exists yet
+    @Query("""
+    SELECT * FROM interactions
+    WHERE contactId = :contactId
+    AND source = 'auto_detected'
+    AND occurredAt BETWEEN :dayStart AND :dayEnd
+    LIMIT 1""")
+    suspend fun getAutoInteractionOnDay(
+        contactId: Long,
+        dayStart: Long,
+        dayEnd: Long
+    ): InteractionEntity?
+
+    @Update
+    suspend fun updateInteraction(interaction: InteractionEntity)
 }

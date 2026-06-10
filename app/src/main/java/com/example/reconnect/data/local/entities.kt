@@ -67,5 +67,8 @@ data class InteractionEntity(
 
     val notes: String? = "",               // Optional typed or voice-transcribed notes about the conversation
 
-    val countsAsContact: Boolean = true   // does this interaction reset the reminder clock?
+    val countsAsContact: Boolean = true,   // does this interaction reset the reminder clock?
+
+    val callCount: Int = 1 //For Auto-detect calls, tracks how many times it happened
+
 )

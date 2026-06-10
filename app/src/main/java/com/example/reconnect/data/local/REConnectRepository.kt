@@ -76,4 +76,68 @@ class REConnectRepository(private val db: REConnectDatabase) {
         db.interactionDao().deleteAllInteractions()  // interactions first
         db.contactDao().deleteAllContacts()          // then contacts
     }
+
+    // Returns all contacts as a plain list (not Flow) — needed for background worker
+    suspend fun getAllContactsOnce(): List<ContactEntity> {
+        return db.contactDao().getAllContactsOnce()
+    }
+
+    // Returns true if an auto-detected interaction already exists for that calendar day
+    suspend fun hasInteractionOnDay(contactId: Long, timestampMs: Long): Boolean {
+        val calendar = java.util.Calendar.getInstance().apply {
+            timeInMillis = timestampMs
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val dayStart = calendar.timeInMillis
+        val dayEnd   = dayStart + 86_400_000L - 1 // end of that same day
+
+        return db.interactionDao().countAutoInteractionsOnDay(contactId, dayStart, dayEnd) > 0
+    }
+
+    // Raw insert — used by background workers that construct the entity themselves.
+    suspend fun insertInteraction(interaction: InteractionEntity): Long =
+        db.interactionDao().insertInteraction(interaction)
+
+    suspend fun upsertAutoCallInteraction(
+        contactId: Long,
+        timestampMs: Long,
+        callCount: Int
+    ) {
+        val calendar = java.util.Calendar.getInstance().apply {
+            timeInMillis = timestampMs
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val dayStart = calendar.timeInMillis
+        val dayEnd   = dayStart + 86_400_000L - 1
+
+        val existing = db.interactionDao().getAutoInteractionOnDay(contactId, dayStart, dayEnd)
+
+        if (existing != null) {
+            // Row exists — update it with the new count
+            // Only update if count changed (avoids unnecessary writes)
+            if (existing.callCount != callCount) {
+                db.interactionDao().updateInteraction(existing.copy(callCount = callCount))
+            }
+        } else {
+            // No row yet — insert fresh
+            db.interactionDao().insertInteraction(
+                InteractionEntity(
+                    contactId       = contactId,
+                    type            = "call",
+                    source          = "auto_detected",
+                    occurredAt      = timestampMs,
+                    notes           = "",
+                    countsAsContact = true,
+                    callCount       = callCount
+                )
+            )
+        }
+    }
+
 }

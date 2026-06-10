@@ -70,7 +70,7 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
     // ── WorkManager
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     // ── Permissions (updated: 0.34.0 → 0.36.0 to match Compose BOM)
     implementation("com.google.accompanist:accompanist-permissions:0.36.0")

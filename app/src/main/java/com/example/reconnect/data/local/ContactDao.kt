@@ -33,4 +33,8 @@ interface ContactDao {
 
     @Query("DELETE FROM contacts WHERE id = :contactId")
     suspend fun deleteContactById(contactId: Long)
+
+    // One-shot fetch (suspend, not Flow) — for background worker use
+    @Query("SELECT * FROM contacts")
+    suspend fun getAllContactsOnce(): List<ContactEntity>
 }
