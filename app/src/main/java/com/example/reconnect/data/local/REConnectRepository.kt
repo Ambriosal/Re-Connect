@@ -2,12 +2,26 @@ package com.example.reconnect.data.local
 
 import com.example.reconnect.util.ImportedContact
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 
 class REConnectRepository(private val db: REConnectDatabase) {
 
     // ── Contacts ──────────────────────────────────────
     fun getAllContacts(): Flow<List<ContactEntity>> =
         db.contactDao().getAllContacts()
+
+    // Re-emits whenever EITHER the contacts table OR the interactions table changes —
+    // needed so logging an interaction immediately refreshes "last contacted" on the list
+    // screen instead of waiting for a contacts-table change (e.g. app restart).
+    fun getAllContactsWithLastInteraction(): Flow<List<Pair<ContactEntity, InteractionEntity?>>> =
+        combine(
+            db.contactDao().getAllContacts(),
+            db.interactionDao().getAllLastInteractions()
+        ) { contacts, lastInteractions ->
+            contacts.map { contact ->
+                contact to lastInteractions.firstOrNull { it.contactId == contact.id }
+            }
+        }
 
     suspend fun getContactById(id: Long): ContactEntity? =
         db.contactDao().getContactById(id)
@@ -24,6 +38,11 @@ class REConnectRepository(private val db: REConnectDatabase) {
     // ── Interactions ──────────────────────────────────
     fun getInteractionsForContact(contactId: Long): Flow<List<InteractionEntity>> =
         db.interactionDao().getInteractionsForContact(contactId)
+
+    // All countsAsContact interactions across every contact — used by the Stats screen
+    // (monthly call totals, weekly goal progress, streak) despite the DAO method's name.
+    fun getAllInteractions(): Flow<List<InteractionEntity>> =
+        db.interactionDao().getAllLastInteractions()
 
     suspend fun getLastInteraction(contactId: Long): InteractionEntity? =
         db.interactionDao().getLastContactingInteraction(contactId)

@@ -2,6 +2,17 @@ package com.example.reconnect.ui.navigation
 
 // Create a new file called NavDestinations.kt or put this in MainActivity
 // ui/navigation/NavGraph.kt
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -11,16 +22,27 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
 import com.example.reconnect.REConnectApplication
 import com.example.reconnect.data.local.REConnectRepository
+import com.example.reconnect.ui.screens.CalendarScreen
 import com.example.reconnect.ui.screens.ContactsScreen
+import com.example.reconnect.ui.screens.HomeScreen
 import com.example.reconnect.ui.screens.Screen
+import com.example.reconnect.ui.screens.StatsScreen
 import com.example.reconnect.ui.viewmodel.ContactDetailViewModel
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
 import com.example.reconnect.ui.viewmodel.ContactsViewModelFactory
+import com.example.reconnect.ui.viewmodel.CalendarViewModel
+import com.example.reconnect.ui.viewmodel.CalendarViewModelFactory
+import com.example.reconnect.ui.viewmodel.HomeViewModel
+import com.example.reconnect.ui.viewmodel.HomeViewModelFactory
+import com.example.reconnect.ui.viewmodel.StatsViewModel
+import com.example.reconnect.ui.viewmodel.StatsViewModelFactory
 import com.example.reconnect.ui.screens.ContactDetailsScreen
 import com.example.reconnect.ui.screens.ContactSettingsScreen
 import com.example.reconnect.ui.screens.SettingsScreen
@@ -28,6 +50,20 @@ import com.example.reconnect.ui.viewmodel.ContactDetailViewModelFactory
 import com.example.reconnect.ui.viewmodel.SettingsViewModel
 import com.example.reconnect.ui.viewmodel.SettingsViewModelFactory
 
+// The four destinations that live behind the bottom nav bar — the bar only
+// shows while the user is on one of these, not on detail/sub screens.
+private data class BottomNavDestination(
+    val route: String,
+    val label: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+)
+
+private val bottomNavDestinations = listOf(
+    BottomNavDestination(Screen.Home, "Home", Icons.Default.Home),
+    BottomNavDestination(Screen.Contacts, "Contacts", Icons.Default.People),
+    BottomNavDestination(Screen.Calendar, "Calendar", Icons.Default.DateRange),
+    BottomNavDestination(Screen.Settings, "Settings", Icons.Default.Settings)
+)
 
 @Composable
 fun NavGraph(
@@ -52,10 +88,78 @@ fun NavGraph(
         }
     }
 
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+
+    Scaffold(
+        bottomBar = {
+            if (bottomNavDestinations.any { it.route == currentRoute }) {
+                NavigationBar {
+                    bottomNavDestinations.forEach { destination ->
+                        NavigationBarItem(
+                            selected = currentRoute == destination.route,
+                            onClick = {
+                                navController.navigate(destination.route) {
+                                    // Standard bottom-nav behavior: don't stack duplicate
+                                    // destinations, and preserve each tab's own back stack.
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(destination.icon, contentDescription = destination.label) },
+                            label = { Text(destination.label) }
+                        )
+                    }
+                }
+            }
+        }
+    ) { scaffoldPadding ->
+
     NavHost(
         navController = navController,
-        startDestination = Screen.Contacts
+        startDestination = Screen.Home,
+        modifier = androidx.compose.ui.Modifier.padding(bottom = scaffoldPadding.calculateBottomPadding())
     ) {
+
+        // ── Route 0: Home — overdue / due-this-week digest + stats widget
+        composable(Screen.Home) {
+            val vm: HomeViewModel = viewModel(factory = HomeViewModelFactory(repository))
+            val statsVm: StatsViewModel = viewModel(
+                factory = StatsViewModelFactory(repository, application.appPreferences)
+            )
+            HomeScreen(
+                viewModel = vm,
+                statsViewModel = statsVm,
+                onNavigateToDetail = { contactId ->
+                    navController.navigate(Screen.contactDetailRoute(contactId))
+                },
+                onNavigateToStats = { navController.navigate(Screen.Stats) }
+            )
+        }
+
+        // ── Route 0c: Stats — full stats page reached from the Home widget
+        composable(Screen.Stats) {
+            val vm: StatsViewModel = viewModel(
+                factory = StatsViewModelFactory(repository, application.appPreferences)
+            )
+            StatsScreen(
+                viewModel = vm,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // ── Route 0b: Calendar
+        composable(Screen.Calendar) {
+            val vm: CalendarViewModel = viewModel(factory = CalendarViewModelFactory(repository))
+            CalendarScreen(
+                viewModel = vm,
+                onNavigateToDetail = { contactId ->
+                    navController.navigate(Screen.contactDetailRoute(contactId))
+                }
+            )
+        }
 
         // ── Route 1: Contacts List
         composable(Screen.Contacts) {
@@ -125,5 +229,6 @@ fun NavGraph(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
+    }
     }
 }

@@ -78,6 +78,9 @@ dependencies {
     // ── Image loading (contact photos, content:// URIs)
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // ── Calendar UI (month grid for the Calendar screen)
+    implementation("com.kizitonwose.calendar:compose:2.6.1")
+
     // ── Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.room:room-testing:$room_version")

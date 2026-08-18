@@ -39,10 +39,9 @@ class ContactsViewModel(private val repository: REConnectRepository) : ViewModel
 
     init {
         viewModelScope.launch {
-            repository.getAllContacts()
-                .collect { contactList ->
-                    val uiModels = contactList.map { entity ->
-                        val lastInteraction = repository.getLastInteraction(entity.id)
+            repository.getAllContactsWithLastInteraction()
+                .collect { contactsWithInteractions ->
+                    val uiModels = contactsWithInteractions.map { (entity, lastInteraction) ->
                         entity.toUiModel(lastInteraction)
                     }
                     _uiState.update {
