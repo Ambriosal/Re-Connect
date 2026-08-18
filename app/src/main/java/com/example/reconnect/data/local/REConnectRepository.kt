@@ -50,6 +50,49 @@ class REConnectRepository(private val db: REConnectDatabase) {
     suspend fun deleteInteraction(interaction: InteractionEntity) =
         db.interactionDao().deleteInteraction(interaction)
 
+    // ← Logged from a notification quick-action (Call/Text button tap).
+    // Marked needsFollowUp so the "how did it go?" prompt picks it up later.
+    suspend fun logInteractionFromNotification(contactId: Long, type: String): Long {
+        return db.interactionDao().insertInteraction(
+            InteractionEntity(
+                contactId = contactId,
+                type = type,
+                source = "notification",
+                occurredAt = System.currentTimeMillis(),
+                notes = "",
+                countsAsContact = true,
+                needsFollowUp = true
+            )
+        )
+    }
+
+    suspend fun getPendingFollowUps(): List<InteractionEntity> =
+        db.interactionDao().getPendingFollowUps()
+
+    suspend fun answerFollowUp(interactionId: Long, notes: String) {
+        val interaction = db.interactionDao().getInteractionById(interactionId) ?: return
+        db.interactionDao().updateInteraction(
+            interaction.copy(notes = notes, needsFollowUp = false)
+        )
+    }
+
+    suspend fun dismissFollowUp(interactionId: Long) {
+        val interaction = db.interactionDao().getInteractionById(interactionId) ?: return
+        db.interactionDao().updateInteraction(interaction.copy(needsFollowUp = false))
+    }
+
+    // Contacts whose last counted interaction is older than their reminderFrequencyDays
+    // (or who have never been logged at all — those are overdue immediately).
+    suspend fun getContactsDueForReminder(): List<ContactEntity> {
+        val now = System.currentTimeMillis()
+        return getAllContactsOnce().filter { contact ->
+            if (!contact.notificationsEnabled) return@filter false
+            val lastInteraction = getLastInteraction(contact.id)
+            val daysSince = lastInteraction?.let { (now - it.occurredAt) / 86_400_000L }
+            daysSince == null || daysSince >= contact.reminderFrequencyDays
+        }
+    }
+
     fun fetchSystemContacts(){
         //query Contacts.Contract.Contacts.CONTENT_URI
     }
@@ -64,6 +107,7 @@ class REConnectRepository(private val db: REConnectDatabase) {
                 name = imported.name,
                 phoneNumber = imported.phoneNumber,
                 nativeContactId = imported.nativeId,
+                photoUri = imported.photoUri,
                 relationshipLabel = "",
                 reminderFrequencyDays = 14
             )

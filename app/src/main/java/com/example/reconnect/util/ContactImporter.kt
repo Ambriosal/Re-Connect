@@ -7,7 +7,9 @@ import android.provider.ContactsContract
 data class ImportedContact(
     val nativeId: String,
     val name: String,
-    val phoneNumber: String?
+    val phoneNumber: String?,
+    val lastTimeContacted: Long? = null,
+    val photoUri: String? = null
 )
 
 fun readContactFromUri(context: Context, contactUri: Uri): ImportedContact? {
@@ -19,7 +21,9 @@ fun readContactFromUri(context: Context, contactUri: Uri): ImportedContact? {
         arrayOf(
             ContactsContract.Contacts._ID,
             ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
-            ContactsContract.Contacts.HAS_PHONE_NUMBER
+            ContactsContract.Contacts.HAS_PHONE_NUMBER,
+            ContactsContract.Contacts.LAST_TIME_CONTACTED,
+            ContactsContract.Contacts.PHOTO_THUMBNAIL_URI
         ),
         null, null, null
     ) ?: return null
@@ -27,12 +31,20 @@ fun readContactFromUri(context: Context, contactUri: Uri): ImportedContact? {
     val nativeId: String
     val name: String
     val hasPhone: Boolean
+    val lastTimeContacted: Long?
+    val photoUri: String?
 
     contactCursor.use { cursor ->
         if (!cursor.moveToFirst()) return null
         nativeId = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID))
         name = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)) ?: return null
         hasPhone = cursor.getInt(cursor.getColumnIndexOrThrow(ContactsContract.Contacts.HAS_PHONE_NUMBER)) > 0
+        lastTimeContacted = cursor.getLong(
+            cursor.getColumnIndexOrThrow(ContactsContract.Contacts.LAST_TIME_CONTACTED)
+        ).takeIf { it > 0 }
+        photoUri = cursor.getString(
+            cursor.getColumnIndexOrThrow(ContactsContract.Contacts.PHOTO_THUMBNAIL_URI)
+        )
     }
 
     // ── Step 2: Get the phone number if one exists
@@ -57,7 +69,9 @@ fun readContactFromUri(context: Context, contactUri: Uri): ImportedContact? {
     return ImportedContact(
         nativeId = nativeId,
         name = name,
-        phoneNumber = phoneNumber
+        phoneNumber = phoneNumber,
+        lastTimeContacted = lastTimeContacted,
+        photoUri = photoUri
     )
 }
 
@@ -77,7 +91,9 @@ fun readAllPhoneContacts(context: Context): List<ImportedContact> {
         arrayOf(
             ContactsContract.Contacts._ID,
             ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
-            ContactsContract.Contacts.HAS_PHONE_NUMBER
+            ContactsContract.Contacts.HAS_PHONE_NUMBER,
+            ContactsContract.Contacts.LAST_TIME_CONTACTED,
+            ContactsContract.Contacts.PHOTO_THUMBNAIL_URI
         ),
         "${ContactsContract.Contacts.HAS_PHONE_NUMBER} > 0",
         null,
@@ -89,6 +105,12 @@ fun readAllPhoneContacts(context: Context): List<ImportedContact> {
             val nativeId = it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts._ID))
             val name = it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY))
                 ?: continue
+            val lastTimeContacted = it.getLong(
+                it.getColumnIndexOrThrow(ContactsContract.Contacts.LAST_TIME_CONTACTED)
+            ).takeIf { millis -> millis > 0 }
+            val photoUri = it.getString(
+                it.getColumnIndexOrThrow(ContactsContract.Contacts.PHOTO_THUMBNAIL_URI)
+            )
 
             // ── Get first phone number for this contact
             var phoneNumber: String? = null
@@ -107,7 +129,7 @@ fun readAllPhoneContacts(context: Context): List<ImportedContact> {
                 }
             }
 
-            contacts.add(ImportedContact(nativeId, name, phoneNumber))
+            contacts.add(ImportedContact(nativeId, name, phoneNumber, lastTimeContacted, photoUri))
         }
     }
 

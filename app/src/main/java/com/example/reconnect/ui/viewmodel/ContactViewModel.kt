@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.reconnect.data.local.ContactEntity
+import com.example.reconnect.data.local.InteractionEntity
 import com.example.reconnect.data.local.REConnectRepository
 import com.example.reconnect.data.model.toUiModel
 import android.content.Context
@@ -26,7 +27,8 @@ data class ContactsUiState(
     val isLoading: Boolean = true,
     val contactCount: Int = 0,
     val phoneContacts: List<ImportedContact> = emptyList(),   // ← all phone contacts
-    val isLoadingPhoneContacts: Boolean = false
+    val isLoadingPhoneContacts: Boolean = false,
+    val pendingFollowUps: List<InteractionEntity> = emptyList() // notification quick-logs awaiting "how did it go?"
 )
 
 // ── ViewModel ─────────────────────────────────────────────────────────────────
@@ -51,6 +53,7 @@ class ContactsViewModel(private val repository: REConnectRepository) : ViewModel
                     }
                 }
         }
+        refreshPendingFollowUps()
     }
 
     fun addContact(
@@ -116,6 +119,26 @@ class ContactsViewModel(private val repository: REConnectRepository) : ViewModel
         }
     }
 
+    fun refreshPendingFollowUps() {
+        viewModelScope.launch {
+            val pending = repository.getPendingFollowUps()
+            _uiState.update { it.copy(pendingFollowUps = pending) }
+        }
+    }
+
+    fun answerFollowUp(interactionId: Long, notes: String) {
+        viewModelScope.launch {
+            repository.answerFollowUp(interactionId, notes)
+            refreshPendingFollowUps()
+        }
+    }
+
+    fun dismissFollowUp(interactionId: Long) {
+        viewModelScope.launch {
+            repository.dismissFollowUp(interactionId)
+            refreshPendingFollowUps()
+        }
+    }
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────

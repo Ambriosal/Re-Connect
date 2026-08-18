@@ -80,6 +80,20 @@ class ContactDetailViewModel(
             _uiState.update { it.copy(contact = updated, isSaving = false) }
         }
     }
+
+    // User answered the "how did it go?" follow-up prompt with notes
+    fun answerFollowUp(interactionId: Long, notes: String) {
+        viewModelScope.launch {
+            repository.answerFollowUp(interactionId, notes)
+        }
+    }
+
+    // User dismissed the follow-up prompt without writing anything
+    fun dismissFollowUp(interactionId: Long) {
+        viewModelScope.launch {
+            repository.dismissFollowUp(interactionId)
+        }
+    }
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────

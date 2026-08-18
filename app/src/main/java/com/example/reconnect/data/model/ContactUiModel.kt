@@ -8,5 +8,6 @@ data class ContactUiModel(
     val reminderFrequencyDays: Int,
     val notes: String,
     val lastContactedAt: Long?,
-    val nativeContactId: String?
+    val nativeContactId: String?,
+    val photoUri: String?
 )

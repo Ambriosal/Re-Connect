@@ -3,17 +3,18 @@ package com.example.reconnect.data.model
 sealed class RelationshipType(
     val label: String,
     val key: String,      // stored in DB — never rename these
-    val emoji: String
+    val emoji: String,
+    val defaultReminderDays: Int // pre-fills a new contact's reminder interval when this tag is picked
 ) {
-    object Family        : RelationshipType("Family",        "family",        "👨‍👩‍👧")
-    object CloseFriend   : RelationshipType("Close Friend",  "close_friend",  "👫")
-    object Friend        : RelationshipType("Friend",        "friend",        "🤝")
-    object Colleague     : RelationshipType("Colleague",     "colleague",     "🏢")
-    object Classmate     : RelationshipType("Classmate",     "classmate",     "🎓")
-    object Professional  : RelationshipType("Professional",  "professional",  "💼")
-    object Acquaintance  : RelationshipType("Acquaintance",  "acquaintance",  "👋")
-    object Partner       : RelationshipType("Partner",       "partner",       "❤️")
-    object Other         : RelationshipType("Other",         "other",         "🌐")
+    object Partner       : RelationshipType("Partner",       "partner",       "❤️", 3)
+    object CloseFriend   : RelationshipType("Close Friend",  "close_friend",  "👫", 7)
+    object Family        : RelationshipType("Family",        "family",        "👨‍👩‍👧", 10)
+    object Friend        : RelationshipType("Friend",        "friend",        "🤝", 14)
+    object Classmate     : RelationshipType("Classmate",     "classmate",     "🎓", 21)
+    object Colleague     : RelationshipType("Colleague",     "colleague",     "🏢", 30)
+    object Professional  : RelationshipType("Professional",  "professional",  "💼", 45)
+    object Acquaintance  : RelationshipType("Acquaintance",  "acquaintance",  "👋", 60)
+    object Other         : RelationshipType("Other",         "other",         "🌐", 30)
 
     companion object {
         val all = listOf(

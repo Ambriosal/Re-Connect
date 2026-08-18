@@ -2,4 +2,13 @@
 <resources>
 
     <style name="Theme.ReConnect" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Transparent host for SnoozeActivity — the visible UI is a Compose AlertDialog -->
+    <style name="Theme.ReConnect.Transparent" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+    </style>
 </resources>

@@ -1,10 +1,13 @@
 package com.example.reconnect.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import com.example.reconnect.data.local.ContactEntity
 import com.example.reconnect.data.local.InteractionEntity
 import com.example.reconnect.data.model.InteractionType
+import com.example.reconnect.data.model.RelationshipType
+import com.example.reconnect.ui.components.ContactAvatar
 import com.example.reconnect.ui.viewmodel.ContactDetailViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -21,12 +26,22 @@ import java.util.*
 @Composable
 fun ContactDetailsScreen(
     viewModel: ContactDetailViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToContactSettings: () -> Unit = {},
+    promptInteractionId: Long? = null,
+    onPromptConsumed: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
     // Controls whether the "Log Interaction" dialog is visible
     var showLogDialog by remember { mutableStateOf(false) }
+
+    // Auto-opens when we arrived here via a reminder/follow-up notification for an
+    // unanswered "how did it go?" prompt
+    var activeFollowUpId by remember { mutableStateOf(promptInteractionId) }
+    LaunchedEffect(promptInteractionId) {
+        activeFollowUpId = promptInteractionId
+    }
 
     Scaffold(
         topBar = {
@@ -35,6 +50,11 @@ fun ContactDetailsScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToContactSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "Contact settings")
                     }
                 }
             )
@@ -124,6 +144,59 @@ fun ContactDetailsScreen(
             }
         )
     }
+
+    // ── Follow-up prompt: "how was your call/text? want to write it down?"
+    activeFollowUpId?.let { interactionId ->
+        FollowUpDialog(
+            contactName = uiState.contact?.name ?: "them",
+            onSave = { notes ->
+                viewModel.answerFollowUp(interactionId, notes)
+                activeFollowUpId = null
+                onPromptConsumed()
+            },
+            onSkip = {
+                viewModel.dismissFollowUp(interactionId)
+                activeFollowUpId = null
+                onPromptConsumed()
+            }
+        )
+    }
+}
+
+@Composable
+fun FollowUpDialog(
+    contactName: String,
+    onSave: (notes: String) -> Unit,
+    onSkip: () -> Unit
+) {
+    var notes by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onSkip,
+        title = { Text("How was your call/text with $contactName?") },
+        text = {
+            Column {
+                Text(
+                    "What did you talk about? Want to write it down?",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Notes (optional)") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(notes.trim()) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onSkip) { Text("Skip") }
+        }
+    )
 }
 
 //
@@ -141,24 +214,72 @@ fun ContactHeader(
     var selectedRelationshipKey by remember(contact.id) {
         mutableStateOf(contact.relationshipLabel)
     }
+    var showRelationshipMenu by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Spacer(Modifier.height(8.dp))
 
-        val lastContactedText = lastContactedAt?.let { timestamp ->
-            val daysAgo = ((System.currentTimeMillis() - timestamp) / 86_400_000).toInt()
-            when (daysAgo) {
-                0 -> "Last contacted: today"
-                1 -> "Last contacted: yesterday"
-                else -> "Last contacted: $daysAgo days ago"
-            }
-        } ?: "No interactions logged yet"
+        // ── Photo + relationship icon — tap the badge to change relationship type
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                ContactAvatar(photoUri = contact.photoUri, size = 64.dp)
 
-        Text(
-            text = lastContactedText,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+                // Relationship badge — overlaps the bottom-right corner of the photo
+                Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clickable { showRelationshipMenu = true }
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = RelationshipType.fromKey(selectedRelationshipKey)?.emoji ?: "❔",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = showRelationshipMenu,
+                        onDismissRequest = { showRelationshipMenu = false }
+                    ) {
+                        RelationshipType.all.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text("${type.emoji} ${type.label}") },
+                                onClick = {
+                                    selectedRelationshipKey = type.key
+                                    showRelationshipMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            Column {
+                Text(
+                    text = RelationshipType.fromKey(selectedRelationshipKey)?.label ?: "Tap to set relationship",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                val lastContactedText = lastContactedAt?.let { timestamp ->
+                    val daysAgo = ((System.currentTimeMillis() - timestamp) / 86_400_000).toInt()
+                    when (daysAgo) {
+                        0 -> "Last contacted: today"
+                        1 -> "Last contacted: yesterday"
+                        else -> "Last contacted: $daysAgo days ago"
+                    }
+                } ?: "No interactions logged yet"
+
+                Text(
+                    text = lastContactedText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
@@ -167,17 +288,6 @@ fun ContactHeader(
             onValueChange = { nameField = it },
             label = { Text("Name") },
             modifier = Modifier.fillMaxWidth()
-        )
-
-        // ── Relationship picker — pre-selected from contact's stored key
-        Text(
-            "Relationship Type",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        RelationshipTypePicker(
-            selectedKey = selectedRelationshipKey,
-            onTypeSelected = { selectedRelationshipKey = it.key }  // store key locally
         )
 
         Button(

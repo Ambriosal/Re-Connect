@@ -75,6 +75,9 @@ dependencies {
     // ── Permissions (updated: 0.34.0 → 0.36.0 to match Compose BOM)
     implementation("com.google.accompanist:accompanist-permissions:0.36.0")
 
+    // ── Image loading (contact photos, content:// URIs)
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
     // ── Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("androidx.room:room-testing:$room_version")

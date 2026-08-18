@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.reconnect.util.ImportedContact
+import com.example.reconnect.ui.components.ContactAvatar
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
 
 // Defines the available sort modes — sealed class so the when() below is exhaustive
@@ -22,6 +23,7 @@ sealed class PickerSortOrder(val label: String) {
     object AtoZ        : PickerSortOrder("A → Z")
     object ZtoA        : PickerSortOrder("Z → A")
     object PhoneFirst  : PickerSortOrder("Has Phone")
+    object LastCall    : PickerSortOrder("Last Call")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,6 +76,8 @@ fun ContactPickerScreen(
             PickerSortOrder.AtoZ       -> filtered.sortedBy { it.name.lowercase() }
             PickerSortOrder.ZtoA       -> filtered.sortedByDescending { it.name.lowercase() }
             PickerSortOrder.PhoneFirst -> filtered.sortedByDescending { it.phoneNumber != null }
+            // Most recently called first; contacts with no call history sink to the bottom
+            PickerSortOrder.LastCall   -> filtered.sortedByDescending { it.lastTimeContacted ?: -1L }
         }
     }
 
@@ -102,7 +106,8 @@ fun ContactPickerScreen(
                             listOf(
                                 PickerSortOrder.AtoZ,
                                 PickerSortOrder.ZtoA,
-                                PickerSortOrder.PhoneFirst
+                                PickerSortOrder.PhoneFirst,
+                                PickerSortOrder.LastCall
                             ).forEach { order ->
                                 DropdownMenuItem(
                                     text = { Text(order.label) },
@@ -233,6 +238,7 @@ fun ContactPickerScreen(
                         ContactPickerRow(
                             contact = contact,
                             isSelected = contact.nativeId in selected,
+                            showLastContacted = sortOrder == PickerSortOrder.LastCall,
                             onToggle = {
                                 if (contact.nativeId in selected) {
                                     selected.remove(contact.nativeId)
@@ -252,6 +258,7 @@ fun ContactPickerScreen(
 fun ContactPickerRow(
     contact: ImportedContact,
     isSelected: Boolean,
+    showLastContacted: Boolean = false,
     onToggle: () -> Unit
 ) {
     Row(
@@ -266,17 +273,24 @@ fun ContactPickerRow(
             onCheckedChange = { onToggle() }
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Icon(
-            imageVector = Icons.Default.Person,
-            contentDescription = null,
-            modifier = Modifier.size(36.dp)
-        )
+        ContactAvatar(photoUri = contact.photoUri, size = 36.dp)
         Spacer(modifier = Modifier.width(12.dp))
         Column {
             Text(text = contact.name, fontWeight = FontWeight.Medium)
             contact.phoneNumber?.let {
                 Text(
                     text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (showLastContacted) {
+                Text(
+                    text = contact.lastTimeContacted?.let { millis ->
+                        "Last called " + java.text.SimpleDateFormat(
+                            "MMM d, yyyy", java.util.Locale.getDefault()
+                        ).format(java.util.Date(millis))
+                    } ?: "No call history",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -28,9 +28,13 @@ data class ContactEntity(
 
     val nativeContactId: String? = null, // ID from phone's contacts app — for "refresh" feature
 
+    val photoUri: String? = null,       // content:// URI to the phone's contact photo, if any
+
     val countsAsContactPlatforms: String = "call,sms,instagram,whatsapp,in_person,email,other",
     // Comma-separated list of which platforms reset the reminder clock
     // Stored as a string for simplicity — parsed when needed
+
+    val notificationsEnabled: Boolean = true, // manual per-contact override for reminder notifications
 
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -69,6 +73,7 @@ data class InteractionEntity(
 
     val countsAsContact: Boolean = true,   // does this interaction reset the reminder clock?
 
-    val callCount: Int = 1 //For Auto-detect calls, tracks how many times it happened
+    val callCount: Int = 1, //For Auto-detect calls, tracks how many times it happened
 
+    val needsFollowUp: Boolean = false // true when logged via a notification quick-action, until the user answers the "how did it go?" prompt
 )

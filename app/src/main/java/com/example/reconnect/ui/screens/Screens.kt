@@ -9,4 +9,7 @@ object Screen {
     // e.g. contactDetailRoute(42) → "contact_detail/42"
     fun contactDetailRoute(contactId: Long) = "contact_detail/$contactId"
     const val Settings = "settings" // Settings screen
+
+    const val ContactSettings = "contact_settings/{contactId}" // Per-contact settings screen
+    fun contactSettingsRoute(contactId: Long) = "contact_settings/$contactId"
 }

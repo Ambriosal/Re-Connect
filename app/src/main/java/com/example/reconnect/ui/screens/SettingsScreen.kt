@@ -12,7 +12,9 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.reconnect.ui.viewmodel.SettingsViewModel
 import com.example.reconnect.worker.CallLogSyncWorker
+import com.example.reconnect.worker.ReminderCheckWorker
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,6 +103,106 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            // ── Section label
+            Text(
+                text = "Reminders",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // ── Daily reminder check time
+            var showTimePicker by remember { mutableStateOf(false) }
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Daily reminder time",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Overdue contacts are checked once a day at this time",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    TextButton(onClick = { showTimePicker = true }) {
+                        Text(String.format(Locale.getDefault(), "%02d:%02d", uiState.reminderHour, uiState.reminderMinute))
+                    }
+                }
+            }
+
+            if (showTimePicker) {
+                val timePickerState = rememberTimePickerState(
+                    initialHour = uiState.reminderHour,
+                    initialMinute = uiState.reminderMinute,
+                    is24Hour = false
+                )
+                AlertDialog(
+                    onDismissRequest = { showTimePicker = false },
+                    title = { Text("Daily reminder time") },
+                    text = { TimePicker(state = timePickerState) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            viewModel.setReminderTime(timePickerState.hour, timePickerState.minute)
+                            showTimePicker = false
+                        }) { Text("Save") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
+                    }
+                )
+            }
+
+            // ── Test reminder notification card
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Send Test Reminder Notification",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Manually run the overdue-contact check right now",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Button(
+                        onClick = {
+                            val testRequest =
+                                OneTimeWorkRequestBuilder<ReminderCheckWorker>().build()
+                            WorkManager.getInstance(context).enqueue(testRequest)
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Reminder check triggered ✓")
+                            }
+                        }
+                    ) {
+                        Text("Run Check")
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // ── Section label
+            Text(
+                text = "Developer",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             // ── Sync test card
             Card(modifier = Modifier.fillMaxWidth()) {

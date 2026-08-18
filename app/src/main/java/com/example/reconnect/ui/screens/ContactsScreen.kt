@@ -26,6 +26,7 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.example.reconnect.data.model.ContactUiModel
 import com.example.reconnect.data.model.RelationshipType
+import com.example.reconnect.ui.components.ContactAvatar
 import com.example.reconnect.ui.viewmodel.ContactsViewModel
 
 
@@ -285,6 +286,17 @@ fun ContactsScreen(
         )
     }
 
+    // ── Follow-up prompt for interactions logged via a notification quick-action
+    // (Call/Text tap) that haven't been journaled yet. Shows one at a time.
+    uiState.pendingFollowUps.firstOrNull()?.let { interaction ->
+        val contactName = uiState.contacts.find { it.id == interaction.contactId }?.name ?: "them"
+        FollowUpDialog(
+            contactName = contactName,
+            onSave = { notes -> viewModel.answerFollowUp(interaction.id, notes) },
+            onSkip = { viewModel.dismissFollowUp(interaction.id) }
+        )
+    }
+
 // ── Track whether user just requested import so LaunchedEffect
 
 
@@ -320,13 +332,9 @@ fun ContactCard(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Avatar placeholder
-        Icon(
-            imageVector = Icons.Default.Person,
-            contentDescription = null,
-            modifier = Modifier
-                .size(48.dp)
-                .padding(end = 12.dp)
+        ContactAvatar(
+            photoUri = contact.photoUri,
+            modifier = Modifier.padding(end = 12.dp)
         )
 
         // Name + label
@@ -392,6 +400,8 @@ fun ContactCard(
         var phone by remember { mutableStateOf("") }
         var selectedRelationship by remember { mutableStateOf<RelationshipType?>(null) }  // ← replaces label string
         var reminderDays by remember { mutableStateOf("14") }
+        // Once the user hand-edits the days field, stop overwriting it when they change the tag
+        var daysManuallyEdited by remember { mutableStateOf(false) }
 
         AlertDialog(
             onDismissRequest = onDismiss,
@@ -421,12 +431,22 @@ fun ContactCard(
                     )
                     RelationshipTypePicker(
                         selectedKey = selectedRelationship?.key ?: "",
-                        onTypeSelected = { selectedRelationship = it }
+                        onTypeSelected = { type ->
+                            selectedRelationship = type
+                            // Pre-fill from the tag's default unless the user already
+                            // typed their own value for this contact
+                            if (!daysManuallyEdited) {
+                                reminderDays = type.defaultReminderDays.toString()
+                            }
+                        }
                     )
 
                     OutlinedTextField(
                         value = reminderDays,
-                        onValueChange = { reminderDays = it.filter { c -> c.isDigit() } },
+                        onValueChange = {
+                            reminderDays = it.filter { c -> c.isDigit() }
+                            daysManuallyEdited = true
+                        },
                         label = { Text("Remind every X days") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()

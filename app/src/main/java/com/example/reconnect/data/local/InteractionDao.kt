@@ -77,4 +77,8 @@ interface InteractionDao {
 
     @Update
     suspend fun updateInteraction(interaction: InteractionEntity)
+
+    // Interactions logged via a notification quick-action that haven't been journaled yet
+    @Query("SELECT * FROM interactions WHERE needsFollowUp = 1 ORDER BY occurredAt DESC")
+    suspend fun getPendingFollowUps(): List<InteractionEntity>
 }
